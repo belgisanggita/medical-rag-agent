@@ -1,8 +1,16 @@
 """
-Evaluator Agent: LLM-as-judge. Checks the RAG answer for factual grounding
-against the retrieved context and returns a confidence score in [0, 1].
+Evaluator Agent: LLM-as-judge. Scores the RAG answer on two axes against the
+retrieved context:
+
+  * factuality - is the answer grounded in the context (no hallucination)?
+  * tone       - is it appropriate for a medical assistant?
+
+Returns a dict {"factuality": float, "tone": float, "issues": str}. The graph
+uses these scores (via planner_agent.decide_after_evaluation) to choose
+between accept / revise / re-query / escalate.
 """
 
+import json
 import re
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -19,13 +27,19 @@ PROMPT = ChatPromptTemplate.from_messages([
     ("human", EVALUATOR_HUMAN_PROMPT),
 ])
 
-DEFAULT_SCORE_ON_PARSE_FAILURE = 0.5
+# Neutral fallback when the judge output can't be parsed - mid-scale so the
+# graph neither blindly trusts nor blindly rejects the answer.
+DEFAULT_ON_PARSE_FAILURE = {"factuality": 0.5, "tone": 0.5, "issues": "evaluator output unparseable"}
 
 
-def evaluate_answer(question: str, answer: str, context: str) -> float:
-    """Returns a confidence score between 0 and 1."""
+def _clamp(x: float) -> float:
+    return max(0.0, min(1.0, float(x)))
+
+
+def evaluate_answer(question: str, answer: str, context: str) -> dict:
+    """Returns {"factuality": [0,1], "tone": [0,1], "issues": str}."""
     if not context:
-        return 0.0
+        return {"factuality": 0.0, "tone": 0.5, "issues": "no context was retrieved"}
 
     raw = invoke_prompt(
         PROMPT,
@@ -35,9 +49,23 @@ def evaluate_answer(question: str, answer: str, context: str) -> float:
         reasoning_max_tokens=settings.EVALUATOR_REASONING_MAX_TOKENS,
     )
 
-    match = re.search(r"(\d*\.?\d+)", raw)
+    match = re.search(r"\{.*\}", raw or "", re.DOTALL)
     if not match:
-        logger.warning(f"Evaluator returned unparseable score: {raw!r}, defaulting to {DEFAULT_SCORE_ON_PARSE_FAILURE}")
-        return DEFAULT_SCORE_ON_PARSE_FAILURE
+        logger.warning(f"Evaluator returned no JSON object: {raw!r}, using default scores")
+        return dict(DEFAULT_ON_PARSE_FAILURE)
 
-    return max(0.0, min(1.0, float(match.group(1))))
+    try:
+        data = json.loads(match.group(0))
+        result = {
+            "factuality": _clamp(data.get("factuality", 0.5)),
+            "tone": _clamp(data.get("tone", 0.5)),
+            "issues": str(data.get("issues", "")).strip(),
+        }
+        logger.info(
+            "Evaluator: factuality=%.2f tone=%.2f issues=%r",
+            result["factuality"], result["tone"], result["issues"],
+        )
+        return result
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Evaluator JSON parse failed ({e}): {raw!r}, using default scores")
+        return dict(DEFAULT_ON_PARSE_FAILURE)

@@ -101,11 +101,29 @@ if user_question:
             )
 
         answer = result.get("answer", "(tidak ada jawaban)")
-        confidence = result.get("confidence")
+        factuality = result.get("factuality")
+        tone = result.get("tone")
+
+        if result.get("escalated"):
+            st.warning("Respons di-escalate: keyakinan terhadap sumber rendah setelah beberapa percobaan.")
 
         st.markdown(answer)
-        if confidence is not None:
-            st.caption(f"Confidence: {confidence:.0%}")
+
+        # --- evaluation feedback shown alongside the answer ---
+        plan = result.get("plan")
+        if plan:
+            st.caption("Agen aktif: " + " → ".join(plan))
+
+        if factuality is not None or tone is not None:
+            c1, c2 = st.columns(2)
+            if factuality is not None:
+                c1.caption(f"Factuality: {factuality:.0%}")
+            if tone is not None:
+                c2.caption(f"Tone: {tone:.0%}")
+        if result.get("revised"):
+            st.caption("✍️ Jawaban direvisi otomatis oleh Reviser Agent.")
+        if result.get("eval_issues"):
+            st.caption(f"Catatan Evaluator: {result['eval_issues']}")
 
         # Summarizer may have updated the running summary this turn.
         if result.get("summary"):
@@ -115,9 +133,15 @@ if user_question:
     st.session_state.chat_history.append(AIMessage(content=answer))
 
     logger.debug(
-        "turn done | chat_history=%d msg(s) | confidence=%s | last Q=%r | last A=%r",
+        "turn done | chat_history=%d msg(s) | intent=%s | plan=%s | factuality=%s | tone=%s | "
+        "revised=%s | escalated=%s | last Q=%r | last A=%r",
         len(st.session_state.chat_history),
-        confidence,
+        result.get("intent"),
+        result.get("plan"),
+        factuality,
+        tone,
+        result.get("revised"),
+        result.get("escalated"),
         user_question[:120],
         answer[:120],
     )
