@@ -51,6 +51,27 @@ if "graph" not in st.session_state:
     # Build the LangGraph app once per session, reuse across turns.
     st.session_state.graph = build_graph()
 
+if st.sidebar.button("🗑️ Reset chat"):
+    logger.debug(
+        "reset chat | clearing chat_history=%d msg(s) | summary=%r",
+        len(st.session_state.chat_history),
+        st.session_state.summary,
+    )
+    st.session_state.chat_history = []
+    st.session_state.summary = ""
+    st.rerun()
+
+
+logger.debug(
+    "session_state keys=%s | summary=%r | chat_history=%d msg(s):\n%s",
+    list(st.session_state.keys()),
+    st.session_state.summary,
+    len(st.session_state.chat_history),
+    "\n".join(
+        f"  [{i}] {type(m).__name__}: {m.content[:120]}"
+        for i, m in enumerate(st.session_state.chat_history)
+    ) or "  (kosong)",
+)
 
 st.title(f"🩺 {settings.APP_NAME}")
 st.caption("Multi-agent RAG assistant over the Medical Book dataset")
@@ -92,3 +113,11 @@ if user_question:
 
     st.session_state.chat_history.append(HumanMessage(content=user_question))
     st.session_state.chat_history.append(AIMessage(content=answer))
+
+    logger.debug(
+        "turn done | chat_history=%d msg(s) | confidence=%s | last Q=%r | last A=%r",
+        len(st.session_state.chat_history),
+        confidence,
+        user_question[:120],
+        answer[:120],
+    )

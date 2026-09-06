@@ -4,7 +4,10 @@ EVALUATOR_SYSTEM_PROMPT = (
     "Reply with ONLY a single decimal number between 0 and 1, nothing else: "
     "1 means the answer is fully supported by the context and answers the "
     "question well, 0 means the answer is not supported by the context at all "
-    "or is made up. The context, question and answer may be in English or "
+    "or is made up. The answer may end with one short follow-up question "
+    "suggesting a related topic to explore next - ignore that trailing "
+    "question when scoring; judge only the substantive answer above it. "
+    "The context, question and answer may be in English or "
     "Indonesian - judge the meaning regardless of language."
 )
 

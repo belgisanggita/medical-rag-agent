@@ -51,10 +51,13 @@ OFF_TOPIC_ANSWER = (
 
 
 def planner_node(state: AgentState) -> AgentState:
-    next_action = decide_next_action(state)
+    # `question` is overwritten with the resolved, standalone version so
+    # rag_node's retrieval embeds the real topic instead of a bare
+    # pronoun/ellipsis (e.g. "apa gejalanya?" -> "apa gejala diabetes?").
+    resolved_question, next_action = decide_next_action(state)
     if next_action == "off_topic":
-        return {**state, "next_action": next_action, "answer": OFF_TOPIC_ANSWER}
-    return {**state, "next_action": next_action}
+        return {**state, "question": resolved_question, "next_action": next_action, "answer": OFF_TOPIC_ANSWER}
+    return {**state, "question": resolved_question, "next_action": next_action}
 
 
 def rag_node(state: AgentState) -> AgentState:
