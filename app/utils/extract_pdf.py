@@ -93,16 +93,23 @@ def extract_text_per_page(pdf_path: str):
 
         # The FIRST/LAST_CONTENT_PAGE constants are indices into one specific
         # 637-page file. Blindly indexing pdf.pages[idx] against a shorter PDF
-        # throws a bare IndexError deep in the loop (truncated download, a
-        # different edition, a stray placeholder file). Fail with something
+        # throws a bare IndexError deep in the loop. Fail with something
         # actionable instead, and tolerate a slightly-short file by clamping.
+        #
+        # n_pages == 0 almost always means the PDF binary is damaged - most
+        # often line-ending normalization on a machine with
+        # core.autocrlf=true and no .gitattributes marking *.pdf as binary,
+        # which rewrites bytes inside the compressed streams. pdfminer then
+        # can't find the page tree at all. Re-obtain the original file; a
+        # corrupted one cannot be repaired after the fact.
         if n_pages <= FIRST_CONTENT_PAGE:
             raise ValueError(
-                f"'{pdf_path}' has only {n_pages} page(s). This pipeline expects the "
+                f"'{pdf_path}' yielded only {n_pages} page(s). This pipeline expects the "
                 f"{EXPECTED_EDITION_PAGES}-page 'Gale Encyclopedia of Medicine' (front matter "
-                f"alone runs to page {FIRST_CONTENT_PAGE}). The file is truncated or is a "
-                f"different document - check its size/checksum against the source "
-                f"(expected ~24.8 MB / 24,825,060 bytes)."
+                f"alone runs to page {FIRST_CONTENT_PAGE}). The file is corrupted, truncated, "
+                f"or a different document. If n_pages is 0 it is corrupted - replace it with a "
+                f"fresh copy of the source PDF (do NOT let git apply CRLF conversion to it; "
+                f"see .gitattributes). Expected size ~24.8 MB (24,825,060 bytes)."
             )
 
         last_content_page = min(LAST_CONTENT_PAGE, n_pages - 1)
