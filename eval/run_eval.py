@@ -31,6 +31,8 @@ import statistics as stats
 import sys
 import time
 
+from langchain_core.messages import AIMessage, HumanMessage
+
 # make `import app...` work when run as a plain script
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -66,9 +68,14 @@ def retrieval_hit(question: str, keywords):
     return any(k.lower() in ctx for k in keywords)
 
 
-def run_item(graph, item: dict) -> dict:
+def run_item(graph, item: dict, chat_history: list, summary: str) -> dict:
     t0 = time.time()
-    out = graph.invoke({"question": item["question"], "chat_history": [], "summary": ""})
+    # Replay the test set as ONE running conversation (like a single Streamlit
+    # session): feed the accumulated history and the Summarizer's running summary
+    # so the meta "summarize what we discussed" items have real history to work on.
+    out = graph.invoke(
+        {"question": item["question"], "chat_history": chat_history, "summary": summary}
+    )
     latency = round(time.time() - t0, 2)
 
     answer = out.get("answer", "")
@@ -88,6 +95,8 @@ def run_item(graph, item: dict) -> dict:
         "rag_attempts": out.get("rag_attempts", 0),
         "revised": bool(out.get("revised")),
         "escalated": bool(out.get("escalated")),
+        "summary_used": summary,
+        "summary_after": out.get("summary", summary),
         "latency_s": latency,
         "answer": answer,
     }
@@ -164,10 +173,20 @@ def main():
 
     graph = build_graph()
     rows = []
+    # One running conversation across the whole test set (see run_item): append
+    # each turn's Q/A and carry the Summarizer's updated summary to the next item.
+    chat_history: list = []
+    summary: str = ""
     for i, item in enumerate(items, 1):
         print(f"[{i}/{len(items)}] ({item['type']}) {item['question'][:70]}")
         try:
-            rows.append(run_item(graph, item))
+            row = run_item(graph, item, chat_history, summary)
+            rows.append(row)
+            chat_history = chat_history + [
+                HumanMessage(content=item["question"]),
+                AIMessage(content=row["answer"]),
+            ]
+            summary = row["summary_after"] or summary
         except Exception as e:  # keep going so one bad item doesn't lose the run
             print(f"    ERROR: {e}")
             rows.append({
