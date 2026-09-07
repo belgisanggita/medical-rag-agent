@@ -1,7 +1,8 @@
 *.pyc
-properties.env
 __pycache__
 venv
 venv/*
 logs/
 *.log*
+.env
+!docs/prebuilt_qdrant_data/**

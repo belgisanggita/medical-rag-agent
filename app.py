@@ -15,11 +15,53 @@ from langchain_core.messages import HumanMessage, AIMessage
 from app.config import properties_setup as settings
 from app.utils.logger import setup_logger
 from app.agent.graph import build_graph
+from app.index.qdrant_index import is_model_cached, warm_up_model
 from ingest import ensure_ingested
 
 logger = setup_logger(__name__)
 
 st.set_page_config(page_title=settings.APP_NAME, page_icon="🩺")
+
+
+@st.cache_resource(show_spinner=False)
+def _warm_up_embedding_model() -> bool:
+    """Pull the embedding model up front and say so, instead of letting the
+    first question hang for minutes on a silent ~1 GB download.
+
+    Returns True if this process had to download it. Like the ingest check,
+    st.cache_resource keeps this to one call per server process.
+    """
+    downloading = not is_model_cached()
+    message = (
+        "⏬ Embedding Model Downloading... (This is only for first time)"
+        if downloading
+        else "Memuat embedding model..."
+    )
+    logger.info(
+        "Warming up embedding model '%s' (cached=%s)...",
+        settings.EMBEDDING_MODEL,
+        not downloading,
+    )
+    with st.spinner(message):
+        warm_up_model()
+    return downloading
+
+
+try:
+    _first_download = _warm_up_embedding_model()
+except Exception:
+    logger.exception("Embedding model warm-up failed on startup.")
+    st.error(
+        f"Gagal menyiapkan embedding model '{settings.EMBEDDING_MODEL}'. "
+        "Cek koneksi internet container dan logs/medical_generative.log."
+    )
+    st.stop()
+
+# The cached call returns the same flag on every rerun, so gate the notice on
+# session state - otherwise it would pop up again on each interaction.
+if _first_download and not st.session_state.get("model_download_notified"):
+    st.session_state.model_download_notified = True
+    st.toast("Embedding model selesai diunduh dan siap dipakai.", icon="✅")
 
 
 @st.cache_resource(show_spinner="Memeriksa index dokumen di Qdrant...")

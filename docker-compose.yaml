@@ -1,8 +1,9 @@
 name: medical-rag-agent
-
 services:
   # ---------------------------------------------------------------------------
-  # Vector database
+  # Vector database - self-hosted by default, i.e. plain `docker compose up -d`
+  # pulls and runs it. To use a managed cluster instead, skip this container
+  # with `--scale qdrant=0` and set QDRANT_URL / QDRANT_API_KEY.
   # ---------------------------------------------------------------------------
   qdrant:
     image: qdrant/qdrant:v1.12.4
@@ -12,7 +13,12 @@ services:
       - "6333:6333"   # REST API + web dashboard -> http://localhost:6333/dashboard
       - "6334:6334"   # gRPC API
     volumes:
-      - qdrant-data:/qdrant/storage
+      # Pre-built index shipped with the repo: the Medical Book is already
+      # embedded, so startup skips ingestion entirely. Point QDRANT_STORAGE
+      # at any other path (an empty dir, or a named volume) to start from a
+      # blank index and re-ingest from the PDF - see README, "Pre-built
+      # Qdrant index".
+      - ${QDRANT_STORAGE:-./docs/prebuilt_qdrant_data}:/qdrant/storage
     networks:
       - medical-net
     healthcheck:
@@ -36,19 +42,21 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
+        # `required: false` is what makes `--scale qdrant=0` (managed-cluster
+        # mode) work: without it Compose refuses to start app with no qdrant.
+        required: false
     environment:
-      # These override anything in properties.env: real env vars take
-      # precedence over python-dotenv, so the app always talks to the
-      # qdrant service and finds the bundled PDF regardless of local edits.
-      QDRANT_URL: http://qdrant:6333
+      # Required: the LLM key, injected from the host, never committed.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-}
       MEDICAL_PDF_PATH: docs/Medical_Book.pdf
     ports:
       - "8501:8501"   # Streamlit UI -> http://localhost:8501
     volumes:
-      # Secrets / tuning knobs - read by the app's own load_dotenv().
-      # Whole dir is mounted (not the single file) so a missing
-      # properties.env surfaces as a clean app-side config error instead
-      # of Docker silently creating a directory in its place.
       - ./config:/app/config:ro
       # Embedding model download (~1 GB) - fetched once, reused after that.
       - hf-cache:/home/appuser/.cache/huggingface
@@ -64,7 +72,6 @@ services:
       start_period: 60s
 
 volumes:
-  qdrant-data:
   hf-cache:
   app-logs:
 

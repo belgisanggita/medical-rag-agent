@@ -1,7 +1,3 @@
-# Normalize line endings for text, but NEVER touch binary files.
-# Without this, a machine with core.autocrlf=true can CRLF-mangle the bytes
-# inside docs/Medical_Book.pdf on `git add`, corrupting its compressed
-# streams so pdfminer reads 0 pages. (That is exactly what happened once.)
 * text=auto
 
 *.pdf   binary
@@ -16,6 +12,13 @@
 *.bin   binary
 *.pt    binary
 *.onnx  binary
+
+docs/prebuilt_qdrant_data/** binary
+
+# Same file types, wherever else a Qdrant storage dir ends up.
+*.sst   binary
+*.mmap  binary
+*.dat   binary
 
 # Keep shell scripts LF regardless of platform.
 *.sh    text eol=lf
