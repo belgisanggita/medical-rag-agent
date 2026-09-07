@@ -1,0 +1,37 @@
+# --- VCS / project meta ---
+.git
+.gitignore
+.github
+
+# --- Python bytecode / caches ---
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- virtualenvs ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- runtime artefacts (regenerated inside the container) ---
+logs/
+*.log*
+
+# --- secrets: mounted at runtime, never baked into the image ---
+config/properties.env
+
+# --- editor / OS cruft ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- docker files themselves ---
+Dockerfile
+.dockerignore
+docker-compose.yaml
+docker-compose.yml

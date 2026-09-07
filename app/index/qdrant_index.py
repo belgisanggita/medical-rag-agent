@@ -47,6 +47,30 @@ def _get_model() -> SentenceTransformer:
     return _model
 
 
+def is_model_cached() -> bool:
+    """True if the embedding weights are already in the local HF cache.
+
+    Purely offline (`local_files_only=True` never touches the network), so
+    the UI can tell "downloading ~1 GB, be patient" apart from "loading from
+    disk, a few seconds" *before* starting the slow part. A partially
+    downloaded model raises and is correctly reported as not cached.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(settings.EMBEDDING_MODEL, local_files_only=True)
+        return True
+    except Exception:
+        return False
+
+
+def warm_up_model() -> None:
+    """Download + load the embedding model now, instead of lazily on the
+    first question. Lets the UI show progress at startup rather than
+    stalling for minutes behind an unexplained spinner."""
+    _get_model()
+
+
 def ensure_collection():
     """Creates both the content collection and its ingestion-marker
     collection if missing. Each is checked independently - the content

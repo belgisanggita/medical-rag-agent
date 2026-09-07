@@ -39,6 +39,10 @@ ENTRY_LOG_INTERVAL = 25
 
 FIRST_CONTENT_PAGE = 14   # 0-indexed page where the first real entry ("Abdominal ultrasound") starts
 LAST_CONTENT_PAGE = 635   # 0-indexed; page 636 is the ORGANIZATIONS appendix and is dropped
+EXPECTED_EDITION_PAGES = 637  # the two constants above are page indices verified against exactly
+                              # this file (Gale Encyclopedia of Medicine). A PDF with a different
+                              # page count is a different/truncated document - see the guard in
+                              # extract_text_per_page() below.
 
 TITLE_SIZE = 15.0
 SUBHEADING_SIZE = 11.0
@@ -83,12 +87,44 @@ def extract_text_per_page(pdf_path: str):
     column) instead of raw PDF coordinate order, which would interleave
     the two columns line-by-line.
     """
-    total_pages = LAST_CONTENT_PAGE - FIRST_CONTENT_PAGE + 1
-    logger.info(f"Opening PDF and reading {total_pages} content pages ({pdf_path})...")
-
     pages_out = []
     with pdfplumber.open(pdf_path) as pdf:
-        for i, idx in enumerate(range(FIRST_CONTENT_PAGE, LAST_CONTENT_PAGE + 1), start=1):
+        n_pages = len(pdf.pages)
+
+        # The FIRST/LAST_CONTENT_PAGE constants are indices into one specific
+        # 637-page file. Blindly indexing pdf.pages[idx] against a shorter PDF
+        # throws a bare IndexError deep in the loop. Fail with something
+        # actionable instead, and tolerate a slightly-short file by clamping.
+        #
+        # n_pages == 0 almost always means the PDF binary is damaged - most
+        # often line-ending normalization on a machine with
+        # core.autocrlf=true and no .gitattributes marking *.pdf as binary,
+        # which rewrites bytes inside the compressed streams. pdfminer then
+        # can't find the page tree at all. Re-obtain the original file; a
+        # corrupted one cannot be repaired after the fact.
+        if n_pages <= FIRST_CONTENT_PAGE:
+            raise ValueError(
+                f"'{pdf_path}' yielded only {n_pages} page(s). This pipeline expects the "
+                f"{EXPECTED_EDITION_PAGES}-page 'Gale Encyclopedia of Medicine' (front matter "
+                f"alone runs to page {FIRST_CONTENT_PAGE}). The file is corrupted, truncated, "
+                f"or a different document. If n_pages is 0 it is corrupted - replace it with a "
+                f"fresh copy of the source PDF (do NOT let git apply CRLF conversion to it; "
+                f"see .gitattributes). Expected size ~24.8 MB (24,825,060 bytes)."
+            )
+
+        last_content_page = min(LAST_CONTENT_PAGE, n_pages - 1)
+        if n_pages != EXPECTED_EDITION_PAGES:
+            logger.warning(
+                "PDF has %d pages, not the expected %d for this edition - extracting pages "
+                "%d..%d only. If this is meant to be the full encyclopedia the file is "
+                "incomplete (truncated download / partial copy).",
+                n_pages, EXPECTED_EDITION_PAGES, FIRST_CONTENT_PAGE, last_content_page,
+            )
+
+        total_pages = last_content_page - FIRST_CONTENT_PAGE + 1
+        logger.info(f"Opening PDF and reading {total_pages} content pages ({pdf_path})...")
+
+        for i, idx in enumerate(range(FIRST_CONTENT_PAGE, last_content_page + 1), start=1):
             page = pdf.pages[idx]
             for c in page.chars:
                 c["page_height"] = page.height

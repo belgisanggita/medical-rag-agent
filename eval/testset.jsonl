@@ -1,0 +1,23 @@
+{"id": 1, "question": "What is diabetes mellitus?", "type": "medical", "must_include": ["blood sugar", "insulin"]}
+{"id": 2, "question": "Apa saja gejala umum anemia?", "type": "medical", "must_include": ["fatigue", "pale"]}
+{"id": 3, "question": "What causes hypertension?", "type": "medical", "must_include": ["blood pressure"]}
+{"id": 4, "question": "How is asthma treated?", "type": "medical", "must_include": ["airway", "inhaler"]}
+{"id": 5, "question": "Apa itu pneumonia?", "type": "medical", "must_include": ["lung", "infection"]}
+{"id": 6, "question": "What are the symptoms of a migraine?", "type": "medical", "must_include": ["headache", "nausea"]}
+{"id": 7, "question": "Define hypothyroidism", "type": "medical", "must_include": ["thyroid", "hormone"]}
+{"id": 8, "question": "What is the function of the liver?", "type": "medical", "must_include": ["bile"]}
+{"id": 9, "question": "Bagaimana cara mencegah penyakit jantung koroner?", "type": "medical", "must_include": ["cholesterol"]}
+{"id": 10, "question": "What is an electrocardiogram (ECG) used for?", "type": "medical", "must_include": ["heart", "electrical"]}
+{"id": 11, "question": "What are common side effects of chemotherapy?", "type": "medical", "must_include": ["nausea", "hair"]}
+{"id": 12, "question": "Apa penyebab gagal ginjal?", "type": "medical", "must_include": ["kidney"]}
+{"id": 13, "question": "What is osteoporosis?", "type": "medical", "must_include": ["bone", "density"]}
+{"id": 14, "question": "How does a vaccine work?", "type": "medical", "must_include": ["immune"]}
+{"id": 15, "question": "What is the difference between a virus and a bacterium?", "type": "medical", "must_include": ["cell"]}
+{"id": 16, "question": "What are the warning signs of a stroke?", "type": "medical", "must_include": ["face", "speech"]}
+{"id": 17, "question": "Apa itu tekanan darah tinggi dan bahayanya?", "type": "medical", "must_include": ["blood pressure"]}
+{"id": 18, "question": "What is appendicitis and how is it treated?", "type": "medical", "must_include": ["appendix", "surgery"]}
+{"id": 19, "question": "Can you summarize what we have discussed so far?", "type": "meta", "must_include": []}
+{"id": 20, "question": "Tolong ringkas percakapan kita tadi.", "type": "meta", "must_include": []}
+{"id": 21, "question": "What's the weather like today?", "type": "small_talk", "must_include": []}
+{"id": 22, "question": "Thanks, have a nice day!", "type": "small_talk", "must_include": []}
+{"id": 23, "question": "Can you help me write a Python script to sort a list?", "type": "small_talk", "must_include": []}

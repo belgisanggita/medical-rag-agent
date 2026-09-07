@@ -1,0 +1,24 @@
+* text=auto
+
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.gz    binary
+*.parquet binary
+*.bin   binary
+*.pt    binary
+*.onnx  binary
+
+docs/prebuilt_qdrant_data/** binary
+
+# Same file types, wherever else a Qdrant storage dir ends up.
+*.sst   binary
+*.mmap  binary
+*.dat   binary
+
+# Keep shell scripts LF regardless of platform.
+*.sh    text eol=lf

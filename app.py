@@ -15,11 +15,53 @@ from langchain_core.messages import HumanMessage, AIMessage
 from app.config import properties_setup as settings
 from app.utils.logger import setup_logger
 from app.agent.graph import build_graph
+from app.index.qdrant_index import is_model_cached, warm_up_model
 from ingest import ensure_ingested
 
 logger = setup_logger(__name__)
 
 st.set_page_config(page_title=settings.APP_NAME, page_icon="🩺")
+
+
+@st.cache_resource(show_spinner=False)
+def _warm_up_embedding_model() -> bool:
+    """Pull the embedding model up front and say so, instead of letting the
+    first question hang for minutes on a silent ~1 GB download.
+
+    Returns True if this process had to download it. Like the ingest check,
+    st.cache_resource keeps this to one call per server process.
+    """
+    downloading = not is_model_cached()
+    message = (
+        "⏬ Embedding Model Downloading... (This is only for first time)"
+        if downloading
+        else "Memuat embedding model..."
+    )
+    logger.info(
+        "Warming up embedding model '%s' (cached=%s)...",
+        settings.EMBEDDING_MODEL,
+        not downloading,
+    )
+    with st.spinner(message):
+        warm_up_model()
+    return downloading
+
+
+try:
+    _first_download = _warm_up_embedding_model()
+except Exception:
+    logger.exception("Embedding model warm-up failed on startup.")
+    st.error(
+        f"Gagal menyiapkan embedding model '{settings.EMBEDDING_MODEL}'. "
+        "Cek koneksi internet container dan logs/medical_generative.log."
+    )
+    st.stop()
+
+# The cached call returns the same flag on every rerun, so gate the notice on
+# session state - otherwise it would pop up again on each interaction.
+if _first_download and not st.session_state.get("model_download_notified"):
+    st.session_state.model_download_notified = True
+    st.toast("Embedding model selesai diunduh dan siap dipakai.", icon="✅")
 
 
 @st.cache_resource(show_spinner="Memeriksa index dokumen di Qdrant...")
@@ -101,11 +143,29 @@ if user_question:
             )
 
         answer = result.get("answer", "(tidak ada jawaban)")
-        confidence = result.get("confidence")
+        factuality = result.get("factuality")
+        tone = result.get("tone")
+
+        if result.get("escalated"):
+            st.warning("Respons di-escalate: keyakinan terhadap sumber rendah setelah beberapa percobaan.")
 
         st.markdown(answer)
-        if confidence is not None:
-            st.caption(f"Confidence: {confidence:.0%}")
+
+        # --- evaluation feedback shown alongside the answer ---
+        plan = result.get("plan")
+        if plan:
+            st.caption("Agen aktif: " + " → ".join(plan))
+
+        if factuality is not None or tone is not None:
+            c1, c2 = st.columns(2)
+            if factuality is not None:
+                c1.caption(f"Factuality: {factuality:.0%}")
+            if tone is not None:
+                c2.caption(f"Tone: {tone:.0%}")
+        if result.get("revised"):
+            st.caption("✍️ Jawaban direvisi otomatis oleh Reviser Agent.")
+        if result.get("eval_issues"):
+            st.caption(f"Catatan Evaluator: {result['eval_issues']}")
 
         # Summarizer may have updated the running summary this turn.
         if result.get("summary"):
@@ -115,9 +175,15 @@ if user_question:
     st.session_state.chat_history.append(AIMessage(content=answer))
 
     logger.debug(
-        "turn done | chat_history=%d msg(s) | confidence=%s | last Q=%r | last A=%r",
+        "turn done | chat_history=%d msg(s) | intent=%s | plan=%s | factuality=%s | tone=%s | "
+        "revised=%s | escalated=%s | last Q=%r | last A=%r",
         len(st.session_state.chat_history),
-        confidence,
+        result.get("intent"),
+        result.get("plan"),
+        factuality,
+        tone,
+        result.get("revised"),
+        result.get("escalated"),
         user_question[:120],
         answer[:120],
     )
