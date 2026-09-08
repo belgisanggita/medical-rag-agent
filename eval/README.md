@@ -12,6 +12,27 @@ eval/
 
 ---
 
+## Method
+
+In short: a **golden-set regression harness** + the **RAG evaluation triad**
+(faithfulness + context recall) + an **LLM-as-a-judge rubric** + **classification
+accuracy** for routing, plus operational loop metrics.
+
+The evaluation replays a fixed, hand-labelled set of questions through the
+complete pipeline and inspects it at each stage. For every question it checks
+whether the planner sent it down the right path, whether the passages pulled
+from the source actually contained the information the answer needed, and
+whether the final answer stayed faithful to those passages and was phrased
+appropriately for a medical assistant. The faithfulness and phrasing checks are
+carried out by a separate model acting as a reviewer against a fixed set of
+criteria; the other checks are automatic comparisons against the expected
+answers. It also records how often the pipeline had to retry or rewrite itself
+and how long each question took. The question set is small and curated and each
+question is run once, so the results are meant as a consistent check that a
+change did not break anything, not as a broad benchmark.
+
+---
+
 ## Running it
 
 Run it directly with the project's Python environment — no Docker.
