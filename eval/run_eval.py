@@ -11,7 +11,8 @@ results" section:
                             keywords for medical questions?
   * avg_factuality        - Evaluator factuality score (LLM-as-judge), medical only
   * avg_tone              - Evaluator tone score, medical only
-  * avg_keyword_recall    - fraction of expected keywords present in the answer
+  * avg_concept_coverage  - fraction of expected concepts present in the answer,
+                            counting any accepted EN/ID surface form as a hit
   * revision_rate         - share of medical answers the Reviser rewrote
   * escalation_rate       - share of medical answers flagged low-confidence
   * avg_rag_attempts      - mean RAG generations per medical question (re-query cost)
@@ -54,18 +55,25 @@ def _mean(xs):
     return round(stats.mean(xs), 3) if xs else None
 
 
-def keyword_recall(text: str, keywords):
-    if not keywords:
+def _concept_hit(concept, text_lower: str) -> bool:
+    """A concept is a list of accepted surface forms (EN/ID/synonyms); a bare
+    string is treated as a single-form concept for backward compatibility."""
+    variants = [concept] if isinstance(concept, str) else concept
+    return any(v.lower() in text_lower for v in variants)
+
+
+def concept_coverage(text: str, concepts):
+    if not concepts:
         return None
     t = (text or "").lower()
-    return round(sum(k.lower() in t for k in keywords) / len(keywords), 3)
+    return round(sum(_concept_hit(c, t) for c in concepts) / len(concepts), 3)
 
 
-def retrieval_hit(question: str, keywords):
-    if not keywords:
+def retrieval_hit(question: str, concepts):
+    if not concepts:
         return None
     ctx = retrieve_context(question).lower()
-    return any(k.lower() in ctx for k in keywords)
+    return any(_concept_hit(c, ctx) for c in concepts)
 
 
 def run_item(graph, item: dict, chat_history: list, summary: str) -> dict:
@@ -90,7 +98,7 @@ def run_item(graph, item: dict, chat_history: list, summary: str) -> dict:
         "routing_correct": intent == EXPECTED_INTENT[item["type"]],
         "factuality": out.get("factuality") if is_medical else None,
         "tone": out.get("tone") if is_medical else None,
-        "keyword_recall": keyword_recall(answer, item.get("must_include")) if is_medical else None,
+        "concept_coverage": concept_coverage(answer, item.get("must_include")) if is_medical else None,
         "retrieval_hit": retrieval_hit(item["question"], item.get("must_include")) if is_medical else None,
         "rag_attempts": out.get("rag_attempts", 0),
         "revised": bool(out.get("revised")),
@@ -115,7 +123,7 @@ def aggregate(rows):
         "retrieval_hit_rate": _mean([r["retrieval_hit"] for r in med]),
         "avg_factuality": _mean([r["factuality"] for r in med]),
         "avg_tone": _mean([r["tone"] for r in med]),
-        "avg_keyword_recall": _mean([r["keyword_recall"] for r in med]),
+        "avg_concept_coverage": _mean([r["concept_coverage"] for r in med]),
         "revision_rate": _mean([r["revised"] for r in med]),
         "escalation_rate": _mean([r["escalated"] for r in med]),
         "avg_rag_attempts": _mean([r["rag_attempts"] for r in med]),
@@ -142,7 +150,7 @@ def write_markdown(agg, rows):
         f"| Retrieval hit-rate | {agg['retrieval_hit_rate']} |",
         f"| Avg factuality (Evaluator) | {agg['avg_factuality']} |",
         f"| Avg tone (Evaluator) | {agg['avg_tone']} |",
-        f"| Avg keyword recall (answer) | {agg['avg_keyword_recall']} |",
+        f"| Avg concept coverage (answer) | {agg['avg_concept_coverage']} |",
         f"| Revision rate | {agg['revision_rate']} |",
         f"| Escalation rate | {agg['escalation_rate']} |",
         f"| Avg RAG attempts / question | {agg['avg_rag_attempts']} |",
@@ -150,13 +158,13 @@ def write_markdown(agg, rows):
         "",
         "## Per-question",
         "",
-        "| id | type | routed ok | factuality | tone | kw recall | retr hit | attempts | revised | escalated | latency s |",
+        "| id | type | routed ok | factuality | tone | concept cov | retr hit | attempts | revised | escalated | latency s |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for r in rows:
         lines.append(
             f"| {r['id']} | {r['type']} | {r['routing_correct']} | {r['factuality']} | "
-            f"{r['tone']} | {r['keyword_recall']} | {r['retrieval_hit']} | {r['rag_attempts']} | "
+            f"{r['tone']} | {r['concept_coverage']} | {r['retrieval_hit']} | {r['rag_attempts']} | "
             f"{r['revised']} | {r['escalated']} | {r['latency_s']} |"
         )
     with open(RESULTS_MD, "w", encoding="utf-8") as f:
@@ -192,7 +200,7 @@ def main():
             rows.append({
                 "id": item["id"], "type": item["type"], "question": item["question"],
                 "error": str(e), "routing_correct": None, "factuality": None, "tone": None,
-                "keyword_recall": None, "retrieval_hit": None, "rag_attempts": 0,
+                "concept_coverage": None, "retrieval_hit": None, "rag_attempts": 0,
                 "revised": False, "escalated": False, "latency_s": None,
             })
 

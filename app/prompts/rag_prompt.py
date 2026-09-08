@@ -12,7 +12,15 @@ RAG_SYSTEM_PROMPT = (
     "user to explore a natural next aspect of the same topic - for example "
     "its symptoms, causes, or treatment. Put it on its own final line. Skip "
     "the follow-up question only when you could not find the information in "
-    "the source."
+    "the source. "
+    "Compose your reply internally and then output it exactly once as plain "
+    "prose. Do not think out loud, do not write a draft and then rewrite it, "
+    "and do not repeat any sentence or paragraph. Your visible reply must "
+    "contain ONLY the answer text followed by the single follow-up question - "
+    "never any conversation-format markup, control tokens, or role/channel "
+    "labels of any kind (for example nothing resembling <|...|>, 'assistant', "
+    "'channel', 'analysis', 'final', or 'message'). If you notice yourself "
+    "starting over, stop and keep only the first complete version."
 )
 
 RAG_SUMMARY_PROMPT = "Summary of the conversation so far: {summary}"
