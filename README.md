@@ -21,6 +21,7 @@ automatic fact-check / tone-check / self-revision loop.
 - [Troubleshooting](#troubleshooting)
 - [Local development (without Docker)](#local-development-without-docker)
 - [Evaluation harness](#evaluation-harness)
+- [Room for future work](#room-for-future-work)
 - [Project layout](#project-layout)
 
 ---
@@ -331,3 +332,38 @@ it against the containerised stack:
 ```bash
 docker compose exec app python eval/run_eval.py
 ```
+
+---
+
+## Room for future work
+
+This project is far from perfect and has plenty of gaps — it was built in just a
+few days. What follows is an honest note on where it could go next.
+
+### Evaluation method
+
+The harness in `eval/` uses no named eval library (RAGAS, DeepEval, promptfoo),
+but it does follow well-known practices: a **fixed golden test set run through
+the full pipeline**, with **component-level** metrics (routing accuracy,
+retrieval hit-rate) and **end-to-end** ones (faithfulness / groundedness and
+tone via *LLM-as-a-judge*), in the shape of the **RAG evaluation triad**. It is
+a directed check on a single run — not a large benchmark with significance
+testing.
+
+Next steps: adopt a named framework so numbers compare to published baselines;
+grow the test set and run each item several times for mean ± variance; make
+`concept_coverage` semantic with an LLM rubric instead of a substring match; gate
+CI on the key metrics; and use a different model family for the judge.
+
+### The project overall
+
+- **Retrieval:** hybrid (dense + sparse) search with a re-ranker,
+  heading-aware chunking, and incremental multi-document ingestion.
+- **Agents:** token streaming to the UI, per-agent model selection, and
+  showing the retrieved passages + evaluator scores.
+- **Serving:** split the LangGraph into a FastAPI service behind the UI,
+  add tracing (Langfuse), auth and rate limiting, and a
+  full CI pipeline.
+- **Product & safety:** inline source citations, an explicit medical
+  disclaimer and emergency refusal path, user feedback capture, and
+  wider language coverage.
